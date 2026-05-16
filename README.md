@@ -70,5 +70,3 @@ Discuss which configuration would you choose for deployment, and why? We're espe
 ## 6. References
 
 List papers, repositories, blog posts, and any generated code you used. For generated code, briefly note what was generated, what you changed, and how you validated it.
-README.md
-Zoomed into item. 
