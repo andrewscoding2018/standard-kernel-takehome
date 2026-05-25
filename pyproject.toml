@@ -1,13 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "standard-kernel-takehome"
+name = "fp4_kernel"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.11"
+description = "FP4 quantized linear kernel for transformer inference"
+requires-python = ">=3.10"
 dependencies = [
-    "matplotlib>=3.10.9",
-    "pandas>=3.0.2",
-    "pytest>=9.0.3",
-    "torch>=2.11.0",
-    "transformers>=5.8.1",
+    "torch",
+    "triton",
+    "numpy",
+    "transformers",
+    "pytest",
+    "matplotlib",
+    "pandas",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["fp4_kernel*"]
