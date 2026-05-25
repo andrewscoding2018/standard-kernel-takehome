@@ -19,4 +19,4 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["fp4_kernel*"]
+include = ["fp4_kernel*", "test*"]
