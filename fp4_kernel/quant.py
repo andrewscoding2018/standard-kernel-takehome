@@ -23,3 +23,11 @@ class QuantizedTensor(nn.Module):
     # add padding to deal with sizing issues
 
     # 
+
+
+def quantize():
+    raise NotImplementedError
+
+def dequantize():
+    raise NotImplementedError
+
