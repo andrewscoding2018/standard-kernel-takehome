@@ -1,17 +1,15 @@
-# quantize, dequantize, quantizedtensor
 
-import pytest
 import torch.nn as nn
-import copy
-from transformers import AutoTokenizer, AutoModelForCausalLM
-import matplotlib.pyplot as plt
-import numpy as np
+from dataclasses import dataclass
+from formats import FP4Format, max_value
 
-
+@dataclass
 class QuantizedTensor(nn.Module):
 
-    def __init__(self):
+    def __init__(self, packed, scales, shape, block_size, fmt: FP4Format, scale_axis, padded_k, nbytes):
         super().__init__()
+        self.packed = packed # uint8
+        self.scales = scales # fp32 or fp16
 
     # packed codes in uint8
     # scales
@@ -22,7 +20,24 @@ class QuantizedTensor(nn.Module):
 
     # add padding to deal with sizing issues
 
-    # 
+    def quantize(weight, *, format, block_size, scale_mode) -> QuantizedTensor:
+        # calls .contiugous if neede
+        # reshape to (..., n_blocks, block_size, scale_mode) -> pads K up to multiple of block size
+        # codes = nearest code (weight / scale), format), pack
+
+        raise NotImplementedError
+        return QuantizedTensor()
+    
+    def dequantize(qt: QuantizedTensor, scale):
+        # scale can either be `absmax` or `percentile
+        if scale == "absmax":
+            scale = block.abs().max() / fmt.max_value()
+        if scale == "percentile":
+            scale = quantile(block.abs(), 0.999) / fmt.max_value
+
+
+
+
 
 
 def quantize():
