@@ -1,7 +1,7 @@
 
 import torch.nn as nn
 from dataclasses import dataclass
-from formats import FP4Format, max_value
+from .formats import FP4Format
 
 @dataclass
 class QuantizedTensor(nn.Module):

@@ -1,5 +1,5 @@
 # to help with swapping in layers
-from quant import QuantizedTensor
+from .quant import QuantizedTensor
 
 def swap_all(model, block_size, which):
     """which is a list like ['up_proj', 'gate_proj', 'down_proj', 'q_proj', ...]"""
