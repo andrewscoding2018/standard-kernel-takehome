@@ -1,3 +1,11 @@
+# ===== RECOMMENDED TESTS (reference — README "correctness of packing") =====
+# test_pack_roundtrip_deterministic   # hand array -> pack -> unpack == original
+# test_pack_roundtrip_random          # randomized, many sizes + seeded
+# test_pack_odd_length                # N odd  (the pad/slice path)
+# test_pack_batched_2d                # codes [rows, N]  (current impl breaks here)
+# test_pack_out_of_range_raises       # codes > 15 -> ValueError
+# test_pack_hand_checked_byte         # e.g. [0x0,0xF]->0xF0 ; verify nibble convention
+# ===========================================================================
 import numpy as np
 import pytest
 from fp4_kernel.pack import pack_fp4, unpack_fp4

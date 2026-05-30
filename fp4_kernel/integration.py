@@ -1,4 +1,18 @@
 # to help with swapping in layers
+#
+# ===== TARGET SKELETON (reference — delete as you implement) =====
+# class FakeQuantLinear(nn.Module):
+#     """Wrap an nn.Linear: quantize->dequantize the weight, store back as BF16.
+#        Isolates the ACCURACY question (does FP4 hurt the model?) from the
+#        KERNEL question (is the fused path fast/correct?). swap_all uses THIS,
+#        not QuantizedTensor directly — a QuantizedTensor isn't a forward-able layer."""
+#     @classmethod
+#     def from_linear(cls, linear, fmt, block_size, scale_mode) -> "FakeQuantLinear": ...
+#     def forward(self, x) -> torch.Tensor:  # F.linear(x, self.dq_weight, self.bias)
+#
+# def swap_all(model, which, *, fmt, block_size, scale_mode) -> dict:   # returns originals
+# def restore(model, originals) -> None
+# =================================================================
 from .quant import QuantizedTensor
 
 def swap_all(model, block_size, which):

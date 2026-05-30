@@ -1,4 +1,14 @@
 # pack_fp4 and unpack_fp4
+#
+# ===== TARGET SKELETON (reference) =====
+# def pack_fp4(codes: np.ndarray) -> np.ndarray:
+#     """uint8 [..., N] in [0,15]  ->  uint8 [..., ceil(N/2)], two codes/byte.
+#        convention: low nibble = even index, high nibble = odd index.
+#        TODO vs current impl: handle ODD N (pad a zero nibble), and
+#        operate on the LAST axis so BATCHED 2D input works (test feeds 2D)."""
+# def unpack_fp4(packed: np.ndarray, n: int) -> np.ndarray:
+#     """inverse; return uint8 [..., n] (slice off the odd-N pad; force dtype uint8)."""
+# =======================================
 import numpy as np
 
 def pack_fp4(codes: np.ndarray) -> np.ndarray:
