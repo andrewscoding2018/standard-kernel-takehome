@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from fp4_kernel.formats import FP4_E2M1, FP4_E3M0, FP4Format, generate_fp4_values
+from fp4_kernel.formats import FP4Format, generate_fp4_values
 
 
 # ---- table correctness (deterministic, hand-checked) ----
@@ -32,7 +32,14 @@ def test_e2m1_table():
 
 def test_e3m0_table():
     # zero + powers of two only (NO 1.5 / 3 / 6) — wider exponent range, no mantissa steps
-    raise NotImplementedError
+
+    expected = np.array([
+        0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16, # sig bit 0
+        -0.125, -0.5, -1, -2.0, -4.0, -8.0, -16.0 # sign bit 1
+    ], 
+    dtype=np.float32
+    )
+    np.testing.assert_array_equal(FP4_E3M0.code_to_value, expected)
 
 
 # ---- nearest_code: the rounding kernel ----
