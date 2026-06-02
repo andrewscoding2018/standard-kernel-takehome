@@ -19,6 +19,7 @@ def test_e2m1_table():
     # ASSERT:  exact equality. Exact (not "allclose") is legitimate here because
     #          every E2M1 value (0.5, 1.5, 3, 6, ...) is exactly representable in
     #          binary float, so there's no rounding to tolerate.
+
     expected = np.array(
         [
             0.0,  0.5,  1.0,  1.5,  2.0,  3.0,  4.0,  6.0,   # codes 0-7  (sign bit = 0)

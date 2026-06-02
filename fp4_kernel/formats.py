@@ -26,9 +26,6 @@
 from dataclasses import dataclass, field
 import numpy as np
 
-# FP4_E2M1 = FP4Format(name="e2m1", exp_bits=2, mantissa_bits=1, bias=1)
-# FP4_E3M0 = FP4Format(name="e3m0", exp_bits=3, mantissa_bits=0, bias=<choose>)
-
 
 def generate_fp4_values(exp_bits, mantissa_bits, bias):
     """SEEM layout with exponent bias = 1
@@ -76,3 +73,7 @@ class FP4Format:
         # clipping is automatic using idx
         idx = np.abs(scaled[..., None] - self.code_to_value).argmin(axis=-1)
         return idx.astype(np.uint8)
+
+
+FP4_E2M1 = FP4Format(name="e2m1", exp_bits=2, mantissa_bits=1, bias=1)
+FP4_E3M0 = FP4Format(name="e3m0", exp_bits=3, mantissa_bits=0, bias=1)
