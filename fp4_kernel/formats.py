@@ -1,4 +1,4 @@
-# e2m1, e3m0, and metadat
+# e2m1, e3m0, and metadata
 #
 # ===== TARGET SKELETON (reference — delete each line as you implement it) =====
 # NOTE: formats.py is the BOTTOM of the dependency spine. It imports nothing from
@@ -22,13 +22,12 @@
 #         """PURE: inputs already divided by the block scale (in range).
 #            argmin over |scaled[...,None] - table[None,:]|, return idx as uint8.
 #            NO scale computation, NO quantize() call here."""
-#
+# =============================================================================
+from dataclasses import dataclass, field
+import numpy as np
+
 # FP4_E2M1 = FP4Format(name="e2m1", exp_bits=2, mantissa_bits=1, bias=1)
 # FP4_E3M0 = FP4Format(name="e3m0", exp_bits=3, mantissa_bits=0, bias=<choose>)
-# =============================================================================
-from dataclasses import dataclass
-import numpy as np
-from .quant import quantize
 
 
 def generate_fp4_values(exp_bits, mantissa_bits, bias):
@@ -36,34 +35,44 @@ def generate_fp4_values(exp_bits, mantissa_bits, bias):
     S     E    E      M
     |     |           |
     sign exponent mantissa
-
     """
+
     vals = []
     for code in range(16):
-        sign = (code >> 3) & exp_bits # shifts right and then mask the last bit
-        exp = (code >> mantissa_bits) &  # shifts right 1 and mask to get lowest 2 bits
-        mant = code & 1 & bias # masks lowest bit of original
+        mant = (code >> 0) & ((1 << mantissa_bits) - 1)
+        exp = (code >> mantissa_bits) & ((1 << exp_bits) - 1)
+        sign = (code >> mantissa_bits + exp_bits) & ((1 << 1) - 1)
 
-        if exp == 0: # subnormal: value = 0.5 * mant
-            v = 0.5 * mant
+        v = 0.0
+        if exp != 0:
+            v = 2**(exp - bias) * (1 + mant/2**mantissa_bits)
+        if exp == 0:
+            v = 2**(1-bias) * (mant/2**mantissa_bits)
+        if sign and v:
+            v = -1 * v
         
-        else: # normal: 2^(exp - 1) * (1 + 0.5 * mant)
-            v = (2 ** (exp - 1)) * (1 + 0.5 * mant)
+        vals.append(v)
         
-        vals.append(-v if sign else v)
-    
     return vals
 
-@dataclass
-class FP4Format():
+@dataclass(frozen=True)
+class FP4Format:
+    name: str
+    exp_bits: int
+    mantissa_bits: int
+    bias: int
+    code_to_value: np.ndarray = field(init = False)
+    max_value: float = field(init = False)
 
-    def nearest_code(self, input, levels, fp4_max, fmt):
-        vals = []
-        self.lookup_table = generate_fp4_values(self.exp_bits, self.mantissa_bits, self.bias)
+    def __post_init__(self):
+        table = np.array(generate_fp4_values(self.exp_bits, self.mantissa_bits, self.bias), dtype = np.float32)
+        object.__setattr__(self, "code_to_value", table)
+        object.__setattr__(self, "max_value", float(np.abs(table).max()))
 
-
-        output = []
-        for x in input:
-            output.append(quantize(x))
-
-        return output
+    def nearest_code(self, scaled):
+        scaled = np.asarray(scaled)
+        # scaled[..., None] -> broadcast each value against the 16 entry table along new axis
+        # use argmin to pick nearest grid point (snapping)
+        # clipping is automatic using idx
+        idx = np.abs(scaled[..., None] - self.code_to_value).argmin(axis=-1)
+        return idx.astype(np.uint8)
