@@ -24,47 +24,55 @@
 # def dequantize(qweight: QuantizedTensor) -> torch.Tensor:    # single arg, per README
 #     # unpack -> codes -> fmt.code_to_value[codes] * scale -> reshape -> slice to orig_k
 # =================================================================
+import torch
 import torch.nn as nn
+import numpy as np
 from dataclasses import dataclass
 from .formats import FP4Format
 
 @dataclass
-class QuantizedTensor(nn.Module):
+class QuantizedTensor:
+    packed: torch.Tensor # 
+    scales: torch.Tensor #
+    shape: tuple         # 
+    block_size: int
+    fmt: FP4Format
+    scale_axis: int
+    orig_k: int
 
-    def __init__(self, packed, scales, shape, block_size, fmt: FP4Format, scale_axis, padded_k, nbytes):
-        super().__init__()
-        self.packed = packed # uint8
-        self.scales = scales # fp32 or fp16
+def compute_scale(block, fmt, scale_mode) -> torch.Tensor:
 
-    # packed codes in uint8
-    # scales
-    # original shape
-    # block_size
-    # format e2m1 or e3m0
-    # scale axis
-
-    # add padding to deal with sizing issues
-
-    def quantize(self, weight, *, format, block_size, scale_mode) -> QuantizedTensor:
-        # calls .contiugous if neede
-        # reshape to (..., n_blocks, block_size, scale_mode) -> pads K up to multiple of block size
-        # codes = nearest code (weight / scale), format), pack
+    if scale_mode == "absmax":
+        scale = block.abs().amax(-1) / fmt.max_value
+    elif scale_mode == "percentile":
+        scale = block.abs().quantile(0.999, dim = 1) / fmt.max_value
+    else:
+        raise ValueError(scale_mode)
+    return scale.clamp_min(1e-12) # prevents all-zero block from div by 0 err
 
 
-            scale = np.abs(x).max() / fp4_max # stretch data into our FP4 grid
-            if scale == 0: scale = 1.0
-            scaled = x / scale # round each scaled value to nearest representable FP4 level
-            idx = np.abs(scaled[:, None] - levels[None, :]).argmin(axis=1)
-            output.append([levels[idx], scale])
 
-        return QuantizedTensor()
-    
-    def dequantize(self, qt: QuantizedTensor, scale):
-        # scale can either be `absmax` or `percentile
-        if scale == "absmax":
-            scale = block.abs().max() / fmt.max_value()
-        if scale == "percentile":
-            scale = quantile(block.abs(), 0.999) / fmt.max_value
+
+def quantize(self, weight, *, format, block_size, scale_mode):
+    # calls .contiugous if neede
+    # reshape to (..., n_blocks, block_size, scale_mode) -> pads K up to multiple of block size
+    # codes = nearest code (weight / scale), format), pack
+
+
+    scale = np.abs(x).max() / fp4_max # stretch data into our FP4 grid
+    if scale == 0: scale = 1.0
+    scaled = x / scale # round each scaled value to nearest representable FP4 level
+    idx = np.abs(scaled[:, None] - levels[None, :]).argmin(axis=1)
+    output.append([levels[idx], scale])
+
+    return QuantizedTensor()
+
+def dequantize(self, qt: QuantizedTensor, scale):
+    # scale can either be `absmax` or `percentile
+    if scale == "absmax":
+        scale = block.abs().max() / fmt.max_value()
+    if scale == "percentile":
+        scale = quantile(block.abs(), 0.999) / fmt.max_value
 
 
 def quantize():
