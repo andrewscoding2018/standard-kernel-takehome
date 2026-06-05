@@ -10,16 +10,17 @@
 import torch
 from fp4_kernel.quant import quantize, dequantize, compute_scale
 from fp4_kernel.formats import FP4_E2M1
+import pytest
 
-# def roundtrip_error(W, *, format, block_size, scale_mode):
-#     """
-#     verifies that the roundtrip from quantize -> dequantize works
-#     Returns error (instead of asserting)
-#     """
+def roundtrip_error(W, *, format, block_size, scale_mode):
+    """
+    verifies that the roundtrip from quantize -> dequantize works
+    Returns error (instead of asserting)
+    """
 
-#     qt = quantize(W, format = format, block_size = block_size, scale_mode=scale_mode)
-#     W_hat = dequantize(qt)
-#     return (W_hat - W).norm() / W.norm()
+    qt = quantize(W, format = format, block_size = block_size, scale_mode=scale_mode)
+    W_hat = dequantize(qt)
+    return (W_hat - W).norm() / W.norm()
 
 
 # W = torch.randn(64, 128)
@@ -47,10 +48,32 @@ def test_scale_mode_percentile():
 
     assert s_pctl < s_absmax / 5
 
+@pytest.mark.parameterize("K", [70, 33, 16, 1000]) # none divisible by 12
+def test_ragged_K(K):
+    torch.manual_seed(0)
+    W = torch.randn(48, K)
+    qt = quantize(W, format = FP4_E2M1, block_size=32, scale_mode="absmax")
+    W_hat = dequantize(qt)
+
+    assert W_hat.shape == W.shape # make sure that orig_k slices the right amt
+    assert (W_hat - W).norm() / W.norm() <0.15 # values should be real!
 
 def test_non_contiguous_input():
-    raise NotImplementedError
+    torch.manual_seed(0)
+    base = torch.randn(128, 64)
+
+    for W in (base.t(), base[:, ::2]):
+        assert not W.is_contiguous()
+        a = dequantize(quantize(W, format = FP4_E2M1, block_size=32, scale_mode="absmax"))
+        b = dequantize(quantize(W.contiguous(), format = FP4_E2M1, block_size=32, scale_mode="absmax"))
+        assert torch.allclose(a, b)
+        assert a.shape == W.shape
 
 def test_block_size_monotone():
-    raise NotImplementedError
+    torch.manual_seed(0)
+    W = torch.randn(64, 512)
+    errs = [roundtrip_error(W, format = FP4_E2M1, block_size = bs, scale_mode = "absmax")
+    for bs in (256, 128, 64, 32, 16)]
 
+    for finer, coarser in zip(errs[1:], errs[:-1]):
+        assert finer <= coarser + 1e-6
