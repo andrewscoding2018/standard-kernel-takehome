@@ -48,7 +48,7 @@ def test_scale_mode_percentile():
 
     assert s_pctl < s_absmax / 5
 
-@pytest.mark.parameterize("K", [70, 33, 16, 1000]) # none divisible by 12
+@pytest.mark.parametrize("K", [70, 33, 16, 1000]) # none divisible by 12
 def test_ragged_K(K):
     torch.manual_seed(0)
     W = torch.randn(48, K)
