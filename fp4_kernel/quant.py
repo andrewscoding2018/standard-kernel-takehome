@@ -25,10 +25,11 @@
 #     # unpack -> codes -> fmt.code_to_value[codes] * scale -> reshape -> slice to orig_k
 # =================================================================
 import torch
-import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 from dataclasses import dataclass
 from .formats import FP4Format
+from .pack import pack_fp4, unpack_fp4
 
 @dataclass
 class QuantizedTensor:
@@ -51,33 +52,49 @@ def compute_scale(block, fmt, scale_mode) -> torch.Tensor:
     return scale.clamp_min(1e-12) # prevents all-zero block from div by 0 err
 
 
+def quantize(weight, *, format: FP4Format, block_size, scale_mode) -> QuantizedTensor:
+    weight = weight.detach().contiguous().float() # detach bc we dont' need grads
+    # contiguous so that all of a stride is in memory
+    orig_shape = tuple(weight.shape)
+    K = weight.shape[-1]
+    lead = weight.shape[:-1]
 
+    # pad k up to multiple of block_size
+    pad = (-K) % block_size
+    if pad:
+        weight = F.pad(weight, (0, pad))
+    n_blocks = (K+pad) // block_size
 
-def quantize(self, weight, *, format, block_size, scale_mode):
-    # calls .contiugous if neede
-    # reshape to (..., n_blocks, block_size, scale_mode) -> pads K up to multiple of block size
-    # codes = nearest code (weight / scale), format), pack
+    # reshape into blocks
+    blocks = weight.reshape(*lead, n_blocks, block_size)
 
+    # scale per block
+    scale = compute_scale(blocks, format, scale_mode)
+    scaled = blocks / scale.unsqueeze(-1)
 
-    scale = np.abs(x).max() / fp4_max # stretch data into our FP4 grid
-    if scale == 0: scale = 1.0
-    scaled = x / scale # round each scaled value to nearest representable FP4 level
-    idx = np.abs(scaled[:, None] - levels[None, :]).argmin(axis=1)
-    output.append([levels[idx], scale])
+    # perf downside when we move torch (gpu) -> numpy (cpu)
+    codes = format.nearest_code(scaled.cpu().numpy())
 
-    return QuantizedTensor()
+    packed = torch.from_numpy(pack_fp4(codes))
 
-def dequantize(self, qt: QuantizedTensor, scale):
-    # scale can either be `absmax` or `percentile
-    if scale == "absmax":
-        scale = block.abs().max() / fmt.max_value()
-    if scale == "percentile":
-        scale = quantile(block.abs(), 0.999) / fmt.max_value
+    return QuantizedTensor(
+        packed = packed, scales = scale,
+        shape = orig_shape, block_size=block_size, fmt = format,
+        scale_axis=weight.ndim - 1, orig_k=K
+    )
 
+def dequantize(qweight: QuantizedTensor) -> torch.Tensor:
+    qt = qweight
+    block_size = qt.block_size
+    n_blocks = qt.scales.shape[-1]
 
-def quantize():
-    raise NotImplementedError
+    codes = unpack_fp4(qt.packed.cpu().numpy(), n= block_size)
 
-def dequantize():
-    raise NotImplementedError
+    vals = qt.fmt.code_to_value[codes]
 
+    vals = torch.from_numpy(vals).to(qt.scales.dtype)
+    weight = vals * qt.scales.unsqueeze(-1)
+    lead = weight.shape[:-2]
+    weight = weight.reshape(*lead, n_blocks * block_size)
+
+    return weight[..., :qt.orig_k]    
