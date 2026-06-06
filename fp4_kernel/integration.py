@@ -1,31 +1,36 @@
-# to help with swapping in layers
-#
-# ===== TARGET SKELETON (reference — delete as you implement) =====
-# class FakeQuantLinear(nn.Module):
-#     """Wrap an nn.Linear: quantize->dequantize the weight, store back as BF16.
-#        Isolates the ACCURACY question (does FP4 hurt the model?) from the
-#        KERNEL question (is the fused path fast/correct?). swap_all uses THIS,
-#        not QuantizedTensor directly — a QuantizedTensor isn't a forward-able layer."""
-#     @classmethod
-#     def from_linear(cls, linear, fmt, block_size, scale_mode) -> "FakeQuantLinear": ...
-#     def forward(self, x) -> torch.Tensor:  # F.linear(x, self.dq_weight, self.bias)
-#
-# def swap_all(model, which, *, fmt, block_size, scale_mode) -> dict:   # returns originals
-# def restore(model, originals) -> None
-# =================================================================
-from .quant import QuantizedTensor
+from .quant import QuantizedTensor, quantize, dequantize
+from torch import nn
+import torch.nn.functional as F
+from .formats import FP4_E2M1, FP4_E3M0, FP4Format
 
-def swap_all(model, block_size, which):
-    """which is a list like ['up_proj', 'gate_proj', 'down_proj', 'q_proj', ...]"""
+class FakeQuantLinear(nn.Module):
+    def __init__(self, dq_weight, bias, fmt, block_size, scale_mode):
+        super().__init__()
+        self.register_buffer("dq_weight", dq_weight) # buffer only since we're doing inference
+        self.bias = bias
+        self.fmt, self.block_size, self.scale_mode = fmt, block_size, scale_mode
+
+    @classmethod
+    def from_linear(cls, linear, fmt=FP4_E2M1, block_size=32, scale_mode="absmax"):
+        w = linear.weight
+        qt = quantize(w, format=fmt, block_size=block_size, scale_mode=scale_mode)
+        dq = dequantize(qt).to(dtype=w.dtype, device=w.device)
+        return cls(dq, linear.bias, fmt, block_size, scale_mode)
+
+    def forward(self, x):
+        return F.linear(x, self.dq_weight, self.bias)
+
+
+def swap_all(model, which, *, fmt=FP4_E2M1, block_size=32, scale_mode="absmax"):
     originals = {}
     for i, layer in enumerate(model.model.layers):
         for name in which:
-            for parent_name in ['mlp', 'self_attn']:
+            for parent_name in ('mlp', 'self_attn'):
                 parent = getattr(layer, parent_name, None)
                 if parent is not None and hasattr(parent, name):
-                    mod = getattr(parent, name)
-                    originals[(i, parent_name, name)] = mod
-                    setattr(parent, name, QuantizedTensor(mod, block_size))
+                    originals[(i, parent_name, name)] = getattr(parent, name)
+                    setattr(parent, name, FakeQuantLinear.from_linear(
+                        getattr(parent, name), fmt=fmt, block_size=block_size, scale_mode=scale_mode))
     return originals
 
 def restore(model, originals):
