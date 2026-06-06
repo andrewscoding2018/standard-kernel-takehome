@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from fp4_kernel.formats import FP4Format, generate_fp4_values
+from fp4_kernel.formats import FP4Format, generate_fp4_values, FP4_E2M1, FP4_E3M0
 
 
 # ---- table correctness (deterministic, hand-checked) ----
@@ -68,15 +68,29 @@ def test_nearest_code_exact_grid():
 
 
 def test_nearest_code_rounds_to_nearer():
-    # a value strictly between two grid points -> the closer one
-    raise NotImplementedError
+
+    fmt_E2M1 = FP4_E2M1
+    fmt_E3M0 = FP4_E3M0
+    scaled = np.array([2.6, 2.4, 0.9, 4.9, -2.6, -0.1], dtype=np.float32)
+    expected = np.array([3.0, 2.0, 1.0, 4.0, -3.0, 0.0], dtype=np.float32)
+    decoded_E2M1 = fmt_E2M1.code_to_value[fmt_E2M1.nearest_code(scaled)]
+    decoded_E3M0 = fmt_E3M0.code_to_value[fmt_E2M1.nearest_code(scaled)]
+    
+
+    np.testing.assert_array_equal(decoded_E2M1, expected)
+    np.testing.assert_array_equal(decoded_E3M0, expected)
 
 
 def test_nearest_code_clips_over_max():
     # |value| > max_value -> the max-magnitude code (clamp, no wraparound)
-    raise NotImplementedError
-
+    fmt = FP4_E2M1
+    scaled = np.array([100.0, -100.0, 6.5, -7.0], dtype=np.float32)
+    decoded = fmt.code_to_value[fmt.nearest_code(scaled)]
+    expected = np.array([6.0, -6.0, 6.0, -6.0], dtype=np.float32)
+    np.testing.assert_array_equal(decoded, expected)
+    assert np.all(np.abs(decoded) == fmt.max_value)
 
 def test_max_value():
     # FP4_E2M1.max_value() == 6.0
-    raise NotImplementedError
+    assert FP4_E2M1.max_value == 6.0
+    assert FP4_E3M0.max_value == 64.0
