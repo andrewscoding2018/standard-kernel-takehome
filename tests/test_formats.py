@@ -19,9 +19,9 @@ def test_e2m1_table():
 def test_e3m0_table():
 
     expected = np.array([
-        0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16, # sig bit 0
-        -0.125, -0.5, -1, -2.0, -4.0, -8.0, -16.0 # sign bit 1
-    ], 
+        0.0, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0,        # codes 0-7  (sign bit 0)
+        0.0, -1.0, -2.0, -4.0, -8.0, -16.0, -32.0, -64.0, # codes 8-15 (sign bit 1)
+    ],
     dtype=np.float32
     )
     np.testing.assert_array_equal(FP4_E3M0.code_to_value, expected)
@@ -44,13 +44,16 @@ def test_nearest_code_rounds_to_nearer():
     fmt_E2M1 = FP4_E2M1
     fmt_E3M0 = FP4_E3M0
     scaled = np.array([2.6, 2.4, 0.9, 4.9, -2.6, -0.1], dtype=np.float32)
-    expected = np.array([3.0, 2.0, 1.0, 4.0, -3.0, 0.0], dtype=np.float32)
-    decoded_E2M1 = fmt_E2M1.code_to_value[fmt_E2M1.nearest_code(scaled)]
-    decoded_E3M0 = fmt_E3M0.code_to_value[fmt_E2M1.nearest_code(scaled)]
-    
 
-    np.testing.assert_array_equal(decoded_E2M1, expected)
-    np.testing.assert_array_equal(decoded_E3M0, expected)
+    # E2M1 grid {.., 1, 1.5, 2, 3, 4, 6}: snaps to the nearer grid point
+    expected_E2M1 = np.array([3.0, 2.0, 1.0, 4.0, -3.0, 0.0], dtype=np.float32)
+    decoded_E2M1 = fmt_E2M1.code_to_value[fmt_E2M1.nearest_code(scaled)]
+    np.testing.assert_array_equal(decoded_E2M1, expected_E2M1)
+
+    # E3M0 grid {.., 1, 2, 4, 8, ..} is coarser, so the same inputs round differently
+    expected_E3M0 = np.array([2.0, 2.0, 1.0, 4.0, -2.0, 0.0], dtype=np.float32)
+    decoded_E3M0 = fmt_E3M0.code_to_value[fmt_E3M0.nearest_code(scaled)]
+    np.testing.assert_array_equal(decoded_E3M0, expected_E3M0)
 
 
 def test_nearest_code_clips_over_max():
