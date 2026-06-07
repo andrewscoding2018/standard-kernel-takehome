@@ -13,32 +13,34 @@ import numpy as np
 
 def pack_fp4(codes: np.ndarray) -> np.ndarray:
     """codes: uint8 array of shape (..., N) with values in [0, 15].
-       Returns: uint8 array of shape (..., ceil(N/2)) packing two 4-bit codes per byte."""
-    
+       Returns: uint8 array of shape (..., ceil(N/2)) packing two 4-bit codes per byte.
+
+       Convention: low nibble holds the even index, high nibble the odd index, and we
+       pack along the LAST axis so batched (multi-dim) input works. Odd N is padded with
+       a zero nibble in the final high position (unpack slices it back off via `n`)."""
+
     if codes.dtype != np.uint8:
         raise TypeError(f"codes must be uint8, got {codes.dtype} instead")
 
     if (codes > 15).any():
-            raise ValueError(f"codes must be [0, 15], got max={codes.max()}")
-    
-    res = []
-    for i in range(0, len(codes), 2):
-        a, b = codes[i], codes[i+1]
+        raise ValueError(f"codes must be [0, 15], got max={codes.max()}")
 
-        new_byte = a | (b << 4)
-        res.append(new_byte)
+    N = codes.shape[-1]
+    if N % 2:  # pad one zero nibble onto the last axis so N is even
+        pad = [(0, 0)] * (codes.ndim - 1) + [(0, 1)]
+        codes = np.pad(codes, pad)
 
-    return np.array(res, dtype=np.uint8)
-    
+    low = codes[..., 0::2]          # even indices -> low nibble
+    high = codes[..., 1::2]         # odd indices  -> high nibble
+    return (low | (high << 4)).astype(np.uint8)
+
 
 def unpack_fp4(packed: np.ndarray, n: int) -> np.ndarray:
-    """Inverse of pack_fp4. n is the original (possibly odd) length along the last axis."""
+    """Inverse of pack_fp4. n is the original (possibly odd) length along the last axis.
+       Returns uint8 [..., n], slicing off any zero-nibble pad that pack added."""
 
-    new = []
-
-    for byte in packed:
-        low_nibble = byte & 0x0F
-        high_nibble = (byte >> 4) & 0x0F
-        new.extend([low_nibble, high_nibble])
-
-    return np.array(new)
+    low = packed & 0x0F
+    high = (packed >> 4) & 0x0F
+    # interleave low/high back into adjacent positions along the last axis
+    out = np.stack([low, high], axis=-1).reshape(*packed.shape[:-1], -1)
+    return out[..., :n].astype(np.uint8)
